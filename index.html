@@ -775,6 +775,7 @@ async function bootPatient() {
   const id = localStorage.getItem(CURRENT_PATIENT_KEY);
   const cp = cloudPatients.find(p => p.id === id);
   if (!cp) {
+    // No local ID found — show register form (phone check will handle returning patients)
     showScreen('register');
     hideSidebarLayout();
   } else {
@@ -786,14 +787,29 @@ async function bootPatient() {
 // ═══ REGISTER ═══
 async function doRegister() {
   const name = document.getElementById('regName').value.trim();
+  const phone = document.getElementById('regPhone').value.trim();
   if (!name) { alert('Por favor ingresa tu nombre.'); return; }
-  showLoading('Guardando tu perfil...');
+  if (!phone) { alert('Por favor ingresa tu número de WhatsApp.'); return; }
+  showLoading('Verificando tu perfil...');
   try {
     const patients = await cloudRead();
+    // Check if patient with same phone already exists
+    const phoneClean = phone.replace(/\D/g,'');
+    const existing = patients.find(p => p.phone && p.phone.replace(/\D/g,'') === phoneClean);
+    if (existing) {
+      // Patient already exists — just log them in, don't create duplicate
+      cloudPatients = patients;
+      localStorage.setItem(CURRENT_PATIENT_KEY, existing.id);
+      hideLoading();
+      showToast('✅ Bienvenido de vuelta, ' + existing.name.split(' ')[0] + '!', 'success');
+      showPatientLayout();
+      showScreen('form');
+      return;
+    }
+    // New patient — create profile
     const id = 'pt_' + Date.now();
     patients.push({
-      id, name,
-      phone: document.getElementById('regPhone').value.trim(),
+      id, name, phone,
       age: '', gender: '',
       since: new Date().toLocaleDateString('es-MX', {day:'numeric',month:'long',year:'numeric'}),
       followups: [], notes: [], active: true
